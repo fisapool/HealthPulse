@@ -1,10 +1,11 @@
-# HealthPulse Port Reconfiguration TODO
+# Configure HealthPulse Backend for Local Overpass API
 
-- [x] Update `docker-compose.yml` to use ports 5434 (database)
-- [x] Update `backend/app/database.py` default connection string
-- [x] Update `backend/env.example` with new port configurations
-- [ ] Update `services/api.ts` frontend API configuration
-- [x] Removed self-hosted Overpass API setup (now using public API)
-- [ ] Start Docker Compose services
-- [ ] Verify services are running
+## Tasks
+- [x] Update docker-compose.yml to add OVERPASS_API_URL=http://host.docker.internal:8080 to backend environment variables
+- [x] Restart Docker services to apply configuration changes
+- [ ] Test Overpass API integration with local instance
 
+## Notes
+- Keep public API (https://overpass-api.de) as fallback in env.example
+- Local Overpass API runs on host at port 8080
+- Use host.docker.internal to access host from Docker container

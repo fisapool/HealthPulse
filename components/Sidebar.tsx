@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Map as MapIcon, Database, Terminal, ShieldPlus } from 'lucide-react';
 import { AppView } from '../types';
+import { healthApi } from '../services/api';
 
 interface SidebarProps {
   currentView: AppView;
@@ -9,6 +10,38 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
+  const [dbStatus, setDbStatus] = useState({
+    connected: false,
+    postgis_enabled: false,
+    status: 'unknown',
+    message: 'Checking...'
+  });
+
+  useEffect(() => {
+    const checkDbHealth = async () => {
+      try {
+        const health = await healthApi.checkDatabaseHealth();
+        setDbStatus(health);
+      } catch (error) {
+        console.error('Error checking database health:', error);
+        setDbStatus({
+          connected: false,
+          postgis_enabled: false,
+          status: 'error',
+          message: 'Connection check failed'
+        });
+      }
+    };
+    
+    checkDbHealth();
+    const interval = setInterval(checkDbHealth, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const statusColor = dbStatus.status === 'healthy' ? 'bg-emerald-500' : 
+                      dbStatus.status === 'warning' ? 'bg-amber-500' : 
+                      'bg-red-500';
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'map', label: 'Spatial Viewer', icon: MapIcon },
@@ -53,8 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
         <div className="bg-slate-800/50 rounded-xl p-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">DB Node Status</p>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-sm text-slate-300">PostGIS Connected</span>
+            <div className={`w-2 h-2 rounded-full ${statusColor} ${dbStatus.status === 'healthy' ? 'animate-pulse' : ''}`}></div>
+            <span className="text-sm text-slate-300">{dbStatus.message}</span>
           </div>
         </div>
       </div>

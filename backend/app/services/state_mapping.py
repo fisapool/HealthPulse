@@ -164,12 +164,6 @@ def get_comprehensive_city_state_mapping(db: Optional[Session] = None) -> Dict[s
         # Federal Territories
         "kuala lumpur": "Kuala Lumpur", "kl": "Kuala Lumpur",
         "putrajaya": "Putrajaya", "labuan": "Labuan",
-        
-        # Common abbreviations
-        "sarawak": "Sarawak", "sabah": "Sabah", "selangor": "Selangor",
-        "johor": "Johor", "perak": "Perak", "penang": "Penang",
-        "kedah": "Kedah", "kelantan": "Kelantan", "terengganu": "Terengganu",
-        "pahang": "Pahang", "melaka": "Melaka", "perlis": "Perlis",
     }
     
     # If database session provided, load DOSM mappings and merge
@@ -181,6 +175,75 @@ def get_comprehensive_city_state_mapping(db: Optional[Session] = None) -> Dict[s
         return combined
     
     return base_mapping
+
+
+def get_state_from_coordinates(lat: float, lng: float) -> Optional[str]:
+    """
+    Determine Malaysian state from coordinates using approximate bounding boxes
+    
+    Args:
+        lat: Latitude
+        lng: Longitude
+        
+    Returns:
+        State name or None if coordinates are outside Malaysia
+    """
+    # Check for Singapore FIRST (before Johor, as it's more specific)
+    # Singapore coordinates: approximately 1.15-1.47 N, 103.6-104.0 E
+    if 1.15 <= lat <= 1.47 and 103.6 <= lng <= 104.0:
+        return "Singapore"
+    
+    # Malaysian state bounding boxes (approximate)
+    # Format: [south, west, north, east, state_name]
+    # Order matters: more specific regions first
+    state_bounds = [
+        # Federal Territories (check before states they're within)
+        [3.05, 101.5, 3.25, 101.8, "Kuala Lumpur"],
+        [2.88, 101.65, 2.95, 101.75, "Putrajaya"],
+        [5.2, 115.1, 5.4, 115.3, "Labuan"],
+        # States
+        [0.8, 109.0, 5.0, 115.5, "Sarawak"],  # Expanded to include more areas
+        [4.0, 115.0, 7.5, 119.0, "Sabah"],
+        [2.5, 100.5, 3.8, 102.0, "Selangor"],
+        [1.2, 102.5, 2.8, 104.5, "Johor"],
+        [3.7, 100.0, 5.5, 101.5, "Perak"],
+        [5.0, 99.5, 6.5, 101.0, "Kedah"],
+        [5.1, 100.1, 5.6, 100.5, "Penang"],
+        [4.5, 101.5, 6.5, 102.5, "Kelantan"],
+        [4.0, 102.5, 5.8, 103.5, "Terengganu"],
+        [2.5, 101.0, 4.8, 103.5, "Pahang"],
+        [2.3, 101.8, 3.2, 102.5, "Negeri Sembilan"],
+        [2.0, 102.0, 2.5, 102.5, "Melaka"],
+        [6.0, 99.5, 6.8, 100.5, "Perlis"],
+    ]
+    
+    # Check each state's bounding box
+    for south, west, north, east, state_name in state_bounds:
+        if south <= lat <= north and west <= lng <= east:
+            return state_name
+    
+    # Check for Indonesia (Riau, Sumatera Utara, etc.)
+    if 0.0 <= lat <= 6.0 and 95.0 <= lng <= 109.0:
+        # Riau province (approximate)
+        if 0.5 <= lat <= 2.0 and 100.0 <= lng <= 103.0:
+            return "Riau"
+        # Sumatera Utara (approximate)
+        if 0.5 <= lat <= 4.0 and 97.0 <= lng <= 100.0:
+            return "Sumatera Utara"
+        # Kalimantan Timur (approximate)
+        if -2.0 <= lat <= 2.0 and 114.0 <= lng <= 119.0:
+            return "Kalimantan Timur"
+    
+    # Check for Thailand (Songkhla, Phatthalung)
+    if 6.0 <= lat <= 8.0 and 99.0 <= lng <= 101.0:
+        # Songkhla (สงขลา)
+        if 6.5 <= lat <= 7.5 and 100.0 <= lng <= 101.0:
+            return "สงขลา"
+        # Phatthalung
+        if 7.0 <= lat <= 8.0 and 99.5 <= lng <= 100.5:
+            return "Phatthalung"
+    
+    return None
 
 
 def normalize_state_name(state: str) -> str:

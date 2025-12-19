@@ -137,6 +137,30 @@ class OverpassProxyService:
             )
             response.raise_for_status()
             
+            # Check if response is HTML (error page) instead of JSON
+            if response.text and (response.text.strip().startswith('<?xml') or response.text.strip().startswith('<html') or '<body>' in response.text.lower()):
+                error_msg = "Overpass API returned HTML instead of JSON. This usually indicates a rate limit or server error."
+                response_lower = response.text.lower()
+                if 'rate limit' in response_lower or '429' in response.text:
+                    error_msg = "Overpass API rate limit exceeded. Please try again later."
+                elif 'duplicate_query' in response_lower:
+                    error_msg = "Overpass API detected a duplicate query. This can happen when the same query is sent too quickly. Please wait a moment and try again."
+                elif 'runtime error' in response_lower:
+                    # Extract the actual error message from HTML
+                    import re
+                    error_match = re.search(r'<strong[^>]*>Error</strong>:\s*([^<]+)', response.text, re.IGNORECASE)
+                    if error_match:
+                        error_msg = f"Overpass API error: {error_match.group(1).strip()}"
+                    else:
+                        error_msg = "Overpass API returned a runtime error. The query may be too complex or the server may be overloaded."
+                response_preview = response.text[:200] if response.text else ""
+                logger.error(f"{error_msg} Response preview: {response_preview}")
+                raise httpx.HTTPStatusError(
+                    error_msg,
+                    request=response.request,
+                    response=response
+                )
+            
             data = response.json()
             
             # Cache successful responses

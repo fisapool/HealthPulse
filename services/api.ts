@@ -50,7 +50,7 @@ export const facilitiesApi = {
 
       if (response.data && response.data.facilities) {
         // Backend returns pre-mapped facilities from database
-        return response.data.facilities.map((facility: any) => ({
+        const mapped = response.data.facilities.map((facility: any) => ({
           id: facility.id?.toString() || facility.osm_id || '',
           name: facility.name,
           type: facility.type === 'hospital' ? FacilityType.HOSPITAL : FacilityType.CLINIC,
@@ -61,6 +61,7 @@ export const facilitiesApi = {
           isDuplicate: false,
           score: facility.score || 0,
         }));
+        return mapped;
       }
       return [];
     } catch (error: any) {
@@ -163,6 +164,20 @@ export const facilitiesApi = {
       throw new Error(`Failed to search facilities: ${error.message || 'Unknown error'}`);
     }
   },
+
+  /**
+   * Get facilities grouped by state
+   */
+  async getByState(): Promise<Array<{ name: string; facilities: number }>> {
+    try {
+      const response = await api.get('/facilities/by-state');
+      return response.data || [];
+    } catch (error: any) {
+      console.error('Error fetching facilities by state:', error);
+      // Return empty array on error
+      return [];
+    }
+  },
 };
 
 // ETL Jobs API (to be implemented in backend)
@@ -232,6 +247,71 @@ export const etlApi = {
     } catch (error: any) {
       console.error('Error triggering facility ETL job:', error);
       throw new Error(`Failed to trigger facility ETL: ${error.message || 'Unknown error'}`);
+    }
+  },
+
+  /**
+   * Get ETL pipeline metrics
+   */
+  async getMetrics(): Promise<{
+    sources_active: string;
+    avg_confidence_score: number;
+    write_success_rate: number;
+  }> {
+    try {
+      const response = await api.get('/etl-jobs/metrics');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching ETL metrics:', error);
+      // Return defaults on error
+      return {
+        sources_active: '0/0',
+        avg_confidence_score: 0,
+        write_success_rate: 0
+      };
+    }
+  },
+};
+
+// Analytics API
+export const analyticsApi = {
+  /**
+   * Get analytics data including active users and facility stats
+   */
+  async getAnalytics(): Promise<{ active_users: number; facilities: any }> {
+    try {
+      const response = await api.get('/analytics');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching analytics:', error);
+      // Return defaults on error
+      return { active_users: 0, facilities: null };
+    }
+  },
+};
+
+// Health API
+export const healthApi = {
+  /**
+   * Check database health status
+   */
+  async checkDatabaseHealth(): Promise<{
+    connected: boolean;
+    postgis_enabled: boolean;
+    status: string;
+    message: string;
+  }> {
+    try {
+      const response = await api.get('/health/database');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error checking database health:', error);
+      return {
+        connected: false,
+        postgis_enabled: false,
+        status: 'error',
+        message: 'Failed to check database status'
+      };
     }
   },
 };

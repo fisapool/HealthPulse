@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Users, MapPin, CheckCircle2, AlertTriangle, ArrowUpRight } from 'lucide-react';
-import { facilitiesApi } from '../services/api';
+import { facilitiesApi, analyticsApi } from '../services/api';
 import { Facility, FacilityType } from '../types';
 
 const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
@@ -23,6 +23,9 @@ const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
 
 const Dashboard: React.FC = () => {
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [stateData, setStateData] = useState<Array<{ name: string; facilities: number }>>([]);
+  const [activeUsers, setActiveUsers] = useState<number>(0);
+  const [facilityStats, setFacilityStats] = useState<{ total: number; hospitals: number; clinics: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,8 +34,19 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        
+        // Fetch analytics (includes active users and facility stats)
+        const analyticsData = await analyticsApi.getAnalytics();
+        setActiveUsers(analyticsData.active_users || 0);
+        setFacilityStats(analyticsData.facilities || null);
+        
+        // Fetch facilities for type chart
         const data = await facilitiesApi.getAll();
         setFacilities(data);
+        
+        // Fetch state data from API
+        const states = await facilitiesApi.getByState();
+        setStateData(states);
       } catch (err: any) {
         console.error('Error loading dashboard stats:', err);
         // Show user-friendly error message
@@ -49,7 +63,8 @@ const Dashboard: React.FC = () => {
     loadStats();
   }, []);
 
-  const totalFacilities = facilities.length;
+  // Use analytics stats for total count (correct), fallback to array length if stats not available
+  const totalFacilities = facilityStats?.total ?? facilities.length;
   const duplicates = facilities.filter(f => f.isDuplicate).length;
   
   const typeData = facilities.reduce((acc, facility) => {
@@ -65,19 +80,6 @@ const Dashboard: React.FC = () => {
     }
     return acc;
   }, [] as { name: string; value: number }[]);
-
-  const regionData = facilities.reduce((acc, facility) => {
-    // This is a placeholder for region, as it's not in the Facility type.
-    // We'll simulate it based on the address for demonstration.
-    const region = facility.address.split(',').pop()?.trim() || 'Unknown';
-    const existing = acc.find(item => item.name === region);
-    if (existing) {
-      existing.facilities += 1;
-    } else {
-      acc.push({ name: region, facilities: 1 });
-    }
-    return acc;
-  }, [] as { name: string; facilities: number }[]);
 
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -103,16 +105,16 @@ const Dashboard: React.FC = () => {
         <StatCard title="Total Facilities" value={loading ? '...' : totalFacilities.toLocaleString()} icon={MapPin} color="blue" />
         <StatCard title="Cleaned Records" value={loading ? '...' : (totalFacilities - duplicates).toLocaleString()} icon={CheckCircle2} color="emerald" />
         <StatCard title="Potential Duplicates" value={loading ? '...' : duplicates.toLocaleString()} icon={AlertTriangle} color="amber" />
-        <StatCard title="Active Users" value="24" icon={Users} color="purple" />
+        <StatCard title="Active Users" value={loading ? '...' : activeUsers.toString()} icon={Users} color="purple" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold mb-6">Facilities by Region</h3>
+          <h3 className="text-lg font-bold mb-6">Facilities by State</h3>
           <div className="h-80">
             {loading ? <div className="text-center p-10">Loading...</div> :
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={regionData}>
+              <BarChart data={stateData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />

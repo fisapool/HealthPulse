@@ -24,7 +24,7 @@ export const analyzeSpatialDensity = async (facilities: Facility[]) => {
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "You are a geospatial healthcare analyst specializing in African infrastructure."
+        systemInstruction: "You are a geospatial healthcare analyst specializing in Malaysian and Southeast Asian healthcare infrastructure. Focus on analyzing healthcare facility distribution, coverage density, and identifying service gaps in Malaysia."
       }
     });
     return response.text;

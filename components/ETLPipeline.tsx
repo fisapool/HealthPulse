@@ -5,15 +5,34 @@ import { PipelineStatus, ETLJob } from '../types';
 
 const ETLPipeline: React.FC = () => {
   const [jobs, setJobs] = useState<ETLJob[]>([]);
+  const [metrics, setMetrics] = useState({
+    sources_active: '0/0',
+    avg_confidence_score: 0,
+    write_success_rate: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadJobs();
+    loadMetrics();
     // Optionally set up polling for real-time updates
-    const interval = setInterval(loadJobs, 30000); // Poll every 30 seconds
+    const interval = setInterval(() => {
+      loadJobs();
+      loadMetrics();
+    }, 30000); // Poll every 30 seconds
     return () => clearInterval(interval);
   }, []);
+
+  const loadMetrics = async () => {
+    try {
+      const data = await etlApi.getMetrics();
+      setMetrics(data);
+    } catch (err) {
+      console.error('Error loading ETL metrics:', err);
+      // Don't set error state for metrics, just log it
+    }
+  };
 
   const loadJobs = async () => {
     try {
@@ -73,7 +92,7 @@ const ETLPipeline: React.FC = () => {
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Sources Active</span>
-              <span className="text-emerald-600 font-bold">12/12</span>
+              <span className="text-emerald-600 font-bold">{metrics.sources_active}</span>
             </div>
           </div>
         </div>
@@ -88,7 +107,7 @@ const ETLPipeline: React.FC = () => {
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Avg. Conf Score</span>
-              <span className="text-blue-600 font-bold">94.2%</span>
+              <span className="text-blue-600 font-bold">{metrics.avg_confidence_score.toFixed(1)}%</span>
             </div>
           </div>
         </div>
@@ -103,7 +122,7 @@ const ETLPipeline: React.FC = () => {
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Write Success</span>
-              <span className="text-emerald-600 font-bold">99.8%</span>
+              <span className="text-emerald-600 font-bold">{metrics.write_success_rate.toFixed(1)}%</span>
             </div>
           </div>
         </div>

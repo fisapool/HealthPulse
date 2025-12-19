@@ -1,8 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { facilitiesApi } from '../services/api';
 import { analyzeSpatialDensity } from '../services/geminiService';
 import { Sparkles, MapPin, Navigation } from 'lucide-react';
-import { Facility } from '../types';
+import { Facility, Coordinates } from '../types';
+
+// Haversine formula to calculate distance between two coordinates in kilometers
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Format distance for display
+const formatDistance = (distanceKm: number): string => {
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)}m`;
+  }
+  return `${distanceKm.toFixed(1)}km`;
+};
 
 const MapView: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -13,6 +34,31 @@ const MapView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const leafletMap = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
+  const selectedLocationMarkerRef = useRef<any>(null);
+  // Default to Kuala Lumpur center
+  const [selectedLocation, setSelectedLocation] = useState<Coordinates>({ lat: 3.1390, lng: 101.6869 });
+  const [proximityRadius, setProximityRadius] = useState<number>(50); // Default 50km radius
+
+  // Calculate distances and filter facilities by proximity
+  const nearbyFacilities = useMemo(() => {
+    const facilitiesWithDistance = facilities.map(facility => {
+      const distance = calculateDistance(
+        selectedLocation.lat,
+        selectedLocation.lng,
+        facility.location.lat,
+        facility.location.lng
+      );
+      return { facility, distance };
+    });
+
+    // Filter by radius and sort by distance
+    const filtered = facilitiesWithDistance
+      .filter(item => item.distance <= proximityRadius)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10); // Limit to top 10 nearest
+
+    return filtered;
+  }, [facilities, selectedLocation, proximityRadius]);
 
   useEffect(() => {
     loadFacilities();
@@ -32,17 +78,155 @@ const MapView: React.FC = () => {
     }
   };
 
+  // Use callback ref to initialize map when element is available
+  const mapContainerRef = React.useCallback((node: HTMLDivElement | null) => {
+    // Always update the ref
+    if (mapRef.current !== node) {
+      (mapRef as any).current = node;
+    }
+    
+    // Initialize map if node is available and map doesn't exist
+    // Note: If this callback is called, the div is rendered, which means loading is false
+    if (node && !leafletMap.current && typeof window !== 'undefined') {
+      const L = (window as any).L;
+      
+      if (L) {
+        try {
+          // Set default view to Malaysia (Kuala Lumpur area)
+          leafletMap.current = L.map(node).setView([selectedLocation.lat, selectedLocation.lng], 7);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(leafletMap.current);
+
+          // Add click handler to select location
+          leafletMap.current.on('click', (e: any) => {
+            const { lat, lng } = e.latlng;
+            setSelectedLocation({ lat, lng });
+          });
+        } catch (error: any) {
+          console.error('Failed to create map:', error);
+        }
+      } else {
+        // Dynamically load Leaflet JS (fallback - should already be loaded from index.html)
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.crossOrigin = 'anonymous';
+        script.onload = () => {
+          // Retry map initialization after script loads
+          if (node && !leafletMap.current) {
+            const L = (window as any).L;
+            if (L) {
+              try {
+                leafletMap.current = L.map(node).setView([selectedLocation.lat, selectedLocation.lng], 7);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(leafletMap.current);
+
+                leafletMap.current.on('click', (e: any) => {
+                  const { lat, lng } = e.latlng;
+                  setSelectedLocation({ lat, lng });
+                });
+              } catch (error: any) {
+                console.error('Failed to create map after script load:', error);
+              }
+            }
+          }
+        };
+        script.onerror = () => {
+          console.error('Failed to load Leaflet script');
+        };
+        document.head.appendChild(script);
+      }
+    }
+  }, [selectedLocation]);
+
+  // Fallback useEffect for cases where callback ref doesn't work
   useEffect(() => {
-    // Initialize map when facilities are loaded
-    if (facilities.length > 0 && typeof window !== 'undefined' && !leafletMap.current && mapRef.current) {
+    // Don't initialize if still loading (mapRef div not rendered yet)
+    if (loading || leafletMap.current) {
+      return;
+    }
+    
+    // Wait for mapRef to be available (React may not have attached it yet)
+    const initMap = () => {
+      if (typeof window !== 'undefined' && !leafletMap.current && mapRef.current) {
+        const L = (window as any).L;
+        
+        if (L) {
+          try {
+            // Set default view to Malaysia (Kuala Lumpur area)
+            leafletMap.current = L.map(mapRef.current).setView([selectedLocation.lat, selectedLocation.lng], 7);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(leafletMap.current);
+
+            // Add click handler to select location
+            leafletMap.current.on('click', (e: any) => {
+              const { lat, lng } = e.latlng;
+              setSelectedLocation({ lat, lng });
+            });
+          } catch (error: any) {
+            console.error('Failed to create map:', error);
+          }
+        }
+      }
+    };
+
+    // Try immediately
+    initMap();
+    
+    // If ref not available, wait a bit and retry (React may not have attached ref yet)
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    if (!mapRef.current) {
+      timeoutId = setTimeout(() => {
+        initMap();
+      }, 100);
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (leafletMap.current) {
+        if (selectedLocationMarkerRef.current) {
+          selectedLocationMarkerRef.current.remove();
+          selectedLocationMarkerRef.current = null;
+        }
+        markersRef.current.forEach(marker => marker.remove());
+        markersRef.current = [];
+        leafletMap.current.remove();
+        leafletMap.current = null;
+      }
+    };
+  }, [loading, selectedLocation]);
+
+  // Update selected location marker when location changes
+  useEffect(() => {
+    if (leafletMap.current && typeof window !== 'undefined') {
       const L = (window as any).L;
       if (L) {
-        // Set default view to Malaysia (Kuala Lumpur area)
-        leafletMap.current = L.map(mapRef.current).setView([3.1390, 101.6869], 7);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(leafletMap.current);
+        if (selectedLocationMarkerRef.current) {
+          selectedLocationMarkerRef.current.setLatLng([selectedLocation.lat, selectedLocation.lng]);
+        } else {
+          const selectedIcon = L.divIcon({
+            className: 'selected-location-marker',
+            html: '<div style="width: 20px; height: 20px; border-radius: 50%; background: #3b82f6; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+          });
+          selectedLocationMarkerRef.current = L.marker([selectedLocation.lat, selectedLocation.lng], { icon: selectedIcon, zIndexOffset: 1000 })
+            .addTo(leafletMap.current)
+            .bindPopup('Selected Location<br/>Click map to change');
+        }
+      }
+    }
+  }, [selectedLocation]);
 
+  // Add facility markers when facilities change
+  useEffect(() => {
+    if (facilities.length > 0 && leafletMap.current && typeof window !== 'undefined') {
+      const L = (window as any).L;
+      if (L) {
         // Clear existing markers
         markersRef.current.forEach(marker => marker.remove());
         markersRef.current = [];
@@ -62,15 +246,6 @@ const MapView: React.FC = () => {
         });
       }
     }
-
-    return () => {
-      if (leafletMap.current) {
-        markersRef.current.forEach(marker => marker.remove());
-        markersRef.current = [];
-        leafletMap.current.remove();
-        leafletMap.current = null;
-      }
-    };
   }, [facilities]);
 
   const handleAIAnalysis = async () => {
@@ -125,7 +300,16 @@ const MapView: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div ref={mapRef} className="z-10 h-full" />
+            <div 
+              ref={(node) => {
+                // Update both refs
+                (mapRef as any).current = node;
+                if (node) {
+                  mapContainerRef(node);
+                }
+              }} 
+              className="z-10 h-full" 
+            />
           )}
         </div>
 
@@ -143,26 +327,56 @@ const MapView: React.FC = () => {
           )}
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <h4 className="font-bold mb-4 flex items-center gap-2">
-              <Navigation className="text-blue-500" size={18} />
-              Nearby Facilities
-            </h4>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-bold flex items-center gap-2">
+                <Navigation className="text-blue-500" size={18} />
+                Nearby Facilities
+              </h4>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-500">Radius:</label>
+                <select
+                  value={proximityRadius}
+                  onChange={(e) => {
+                    setProximityRadius(Number(e.target.value));
+                  }}
+                  className="text-xs border border-slate-200 rounded px-2 py-1"
+                >
+                  <option value={10}>10km</option>
+                  <option value={25}>25km</option>
+                  <option value={50}>50km</option>
+                  <option value={100}>100km</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">
+              Click on the map to select a location
+            </p>
             {loading ? (
               <div className="text-center py-8 text-slate-500">
                 <div className="inline-block w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               </div>
-            ) : facilities.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">No facilities found.</div>
+            ) : nearbyFacilities.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                No facilities found within {proximityRadius}km.
+              </div>
             ) : (
               <div className="space-y-3">
-                {facilities.slice(0, 10).map(f => (
-                  <div key={f.id} className="p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer group">
+                {nearbyFacilities.map(({ facility, distance }) => (
+                  <div 
+                    key={facility.id} 
+                    className="p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all cursor-pointer group"
+                    onClick={() => {
+                      if (leafletMap.current) {
+                        leafletMap.current.setView([facility.location.lat, facility.location.lng], 13);
+                      }
+                    }}
+                  >
                     <div className="flex justify-between items-start">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{f.type}</span>
-                      <span className="text-[10px] text-slate-400">0.8km</span>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{facility.type}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{formatDistance(distance)}</span>
                     </div>
-                    <h5 className="font-medium text-slate-900 mt-2 group-hover:text-blue-600 transition-colors">{f.name}</h5>
-                    <p className="text-xs text-slate-500 mt-1 truncate">{f.address}</p>
+                    <h5 className="font-medium text-slate-900 mt-2 group-hover:text-blue-600 transition-colors">{facility.name}</h5>
+                    <p className="text-xs text-slate-500 mt-1 truncate">{facility.address}</p>
                   </div>
                 ))}
               </div>

@@ -11,7 +11,7 @@ from sqlalchemy import and_, func, text
 from app.database import get_db
 from app.models.facility import Facility
 from app.models.etl_job import ETLJob
-from app.services.state_mapping import get_comprehensive_city_state_mapping, normalize_state_name
+from app.services.state_mapping import get_comprehensive_city_state_mapping, normalize_state_name, get_state_from_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ async def get_facilities_by_state(db: Session = Depends(get_db)):
         city_to_state_mapping = get_comprehensive_city_state_mapping(db)
         
         state_counts = {}
-        extraction_stats = {"addr_state": 0, "addr_province": 0, "is_in_state": 0, "city_mapping": 0, "address_parsing": 0, "unknown": 0}
+        extraction_stats = {"addr_state": 0, "addr_province": 0, "is_in_state": 0, "city_mapping": 0, "address_parsing": 0, "coordinate_lookup": 0, "unknown": 0}
         
         for facility in facilities:
             state = "Unknown"
@@ -166,23 +166,34 @@ async def get_facilities_by_state(db: Session = Depends(get_db)):
             if facility.osm_tags:
                 # Prioritize state from OSM tags (check multiple possible fields)
                 if facility.osm_tags.get("addr:state"):
-                    state = normalize_state_name(facility.osm_tags.get("addr:state"))
+                    raw_state = facility.osm_tags.get("addr:state")
+                    state = normalize_state_name(raw_state)
                     extraction_method = "addr_state"
                     extraction_stats["addr_state"] += 1
                 elif facility.osm_tags.get("addr:province"):
-                    state = normalize_state_name(facility.osm_tags.get("addr:province"))
+                    raw_state = facility.osm_tags.get("addr:province")
+                    state = normalize_state_name(raw_state)
                     extraction_method = "addr_province"
                     extraction_stats["addr_province"] += 1
                 elif facility.osm_tags.get("is_in:state"):
-                    state = normalize_state_name(facility.osm_tags.get("is_in:state"))
+                    raw_state = facility.osm_tags.get("is_in:state")
+                    state = normalize_state_name(raw_state)
                     extraction_method = "is_in_state"
                     extraction_stats["is_in_state"] += 1
             
             # Fallback 1: Map city name to state using comprehensive mapping (includes DOSM data)
             if state == "Unknown" and facility.address:
                 address_lower = facility.address.lower()
+                matched_city = None
+                # Use word boundary matching to avoid false positives
+                # Check if city name appears as a whole word (not substring)
+                import re
                 for city, mapped_state in city_to_state_mapping.items():
-                    if city in address_lower:
+                    # Use word boundaries to match whole words only
+                    # This prevents matching "selangor" in "selangor street" when looking for cities
+                    pattern = r'\b' + re.escape(city) + r'\b'
+                    if re.search(pattern, address_lower):
+                        matched_city = city
                         state = mapped_state
                         extraction_method = "city_mapping"
                         extraction_stats["city_mapping"] += 1
@@ -206,21 +217,37 @@ async def get_facilities_by_state(db: Session = Depends(get_db)):
                             extraction_stats["address_parsing"] += 1
                             break
             
+            # Fallback 3: Use coordinates to determine state (last resort)
+            if state == "Unknown" and facility.latitude and facility.longitude:
+                coord_state = get_state_from_coordinates(facility.latitude, facility.longitude)
+                if coord_state:
+                    state = coord_state
+                    extraction_method = "coordinate_lookup"
+                    extraction_stats["coordinate_lookup"] = extraction_stats.get("coordinate_lookup", 0) + 1
+            
             if state == "Unknown":
                 extraction_stats["unknown"] += 1
-            
             
             # Count by state
             if state not in state_counts:
                 state_counts[state] = 0
             state_counts[state] += 1
         
+        # Define valid Malaysian states (13 states + 3 federal territories)
+        malaysian_states = {
+            "Selangor", "Johor", "Perak", "Kedah", "Sarawak", "Sabah",
+            "Kelantan", "Terengganu", "Pahang", "Negeri Sembilan",
+            "Melaka", "Perlis", "Penang",
+            "Kuala Lumpur", "Putrajaya", "Labuan"
+        }
+        
         # Convert to list format for frontend, sorted by count descending
+        # Filter to only include Malaysian states
         state_data = [
             {"name": state, "facilities": count}
             for state, count in sorted(state_counts.items(), key=lambda x: x[1], reverse=True)
+            if state in malaysian_states
         ]
-        
         
         return state_data
     except Exception as e:

@@ -31,6 +31,7 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8002
       ENVIRONMENT: development
+      OVERPASS_API_URL: http://172.17.0.1:8080
     ports:
       - "8002:8000"
     volumes:
