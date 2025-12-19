@@ -15,6 +15,20 @@ The HealthPulse Registry is a comprehensive full-stack web application designed 
 - **Optional Caching**: Redis integration for improved performance.
 - **Modular Architecture**: Clean separation of frontend, backend, and services for maintainability.
 
+## Screenshots
+
+### Dashboard Overview
+![Dashboard Overview](Screenshot/Screenshot%202025-12-20%20041116.png)
+
+### Interactive Map View
+![Map View](Screenshot/Screenshot%202025-12-20%20041137.png)
+
+### Registry Table
+![Registry Table](Screenshot/Screenshot%202025-12-20%20041147.png)
+
+### ETL Pipeline Management
+![ETL Pipeline](Screenshot/Screenshot%202025-12-20%20041157.png)
+
 ## Architecture
 
 The application follows a modular, microservices-inspired architecture:
