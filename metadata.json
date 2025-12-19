@@ -1,0 +1,8 @@
+
+{
+  "name": "HealthPulse Registry",
+  "description": "A comprehensive healthcare facility management system with ETL pipeline tracking, geospatial analysis, and AI-driven data deduplication.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
