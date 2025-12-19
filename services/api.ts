@@ -5,7 +5,23 @@ import { Facility, FacilityType, ETLJob, PipelineStatus } from '../types';
 
 
 // API_BASE_URL is used for backend API calls
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002/api/v1';
+// In Docker: browser runs on host, needs host-accessible URL (not localhost if accessed via network IP)
+// Inside container: backend:8000 works, but browser can't resolve 'backend'
+// Solution: Replace Docker service name with current hostname + mapped port for browser
+const envVar = import.meta.env.VITE_API_BASE_URL;
+let resolvedUrl = envVar || 'http://localhost:8002/api/v1';
+if (typeof window !== 'undefined') {
+  const currentHost = window.location.hostname;
+  const backendPort = '8002'; // Docker mapped port from docker-compose.yml
+  if (resolvedUrl.includes('backend:8000')) {
+    // Browser context: replace Docker service name with current hostname
+    resolvedUrl = resolvedUrl.replace('http://backend:8000', `http://${currentHost}:${backendPort}`);
+  } else if (resolvedUrl.includes('localhost') && currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+    // If accessing via network IP, use that IP for backend too
+    resolvedUrl = resolvedUrl.replace('localhost', currentHost);
+  }
+}
+const API_BASE_URL = resolvedUrl;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -49,6 +65,10 @@ export const facilitiesApi = {
         return [];
       }
       console.error('Error fetching facilities from backend proxy:', error);
+      // Handle 503 Service Unavailable (Overpass API timeout)
+      if (error.response?.status === 503) {
+        throw new Error('Overpass API is temporarily unavailable. Please try again in a few moments.');
+      }
       if (error.code === 'ECONNABORTED') {
         throw new Error('Request timeout. The backend proxy may be slow. Please try again.');
       }

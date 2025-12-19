@@ -22,11 +22,24 @@ app = FastAPI(
 
 
 # CORS middleware - allow frontend to access API
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:3001,http://127.0.0.1:5173,http://127.0.0.1:3001,http://localhost:8002,http://127.0.0.1:8002").split(",")
+# If CORS_ORIGINS is not explicitly set, allow all HTTP origins for network access (e.g., 192.168.x.x)
+# Use regex pattern to match any http:// origin
+env_cors_origins = os.getenv("CORS_ORIGINS")
+default_origins = "http://localhost:5173,http://localhost:3000,http://localhost:3001,http://127.0.0.1:5173,http://127.0.0.1:3001,http://localhost:8002,http://127.0.0.1:8002"
+if not env_cors_origins:
+    cors_origins = []  # Empty list when using regex
+    cors_regex = r"http://.*"  # Allow any http origin
+    allow_creds = False  # Must be False when using wildcard/regex
+else:
+    cors_origins = env_cors_origins.split(",")
+    cors_regex = None
+    allow_creds = True
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=cors_regex,
     allow_origins=cors_origins,
-    allow_credentials=True,
+    allow_credentials=allow_creds,
     allow_methods=["*"],
     allow_headers=["*"],
 )

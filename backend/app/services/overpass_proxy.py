@@ -147,7 +147,13 @@ class OverpassProxyService:
             return data
         
         except httpx.HTTPStatusError as e:
-            logger.error(f"Overpass API HTTP error: {e.response.status_code} - {e.response.text}")
+            status_code = e.response.status_code
+            response_text = e.response.text[:200] if e.response.text else ""
+            logger.error(f"Overpass API HTTP error: {status_code} - {response_text}")
+            # Re-raise with more context for 504 errors
+            if status_code == 504:
+                error_msg = f"Overpass API timeout: The server is too busy. {response_text}"
+                raise httpx.HTTPStatusError(error_msg, request=e.request, response=e.response)
             raise
         except httpx.RequestError as e:
             logger.error(f"Overpass API request error: {e}")

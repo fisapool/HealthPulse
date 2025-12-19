@@ -3,6 +3,7 @@ Overpass API proxy routes
 """
 import logging
 from typing import Optional
+import httpx
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from app.schemas.overpass import (
@@ -228,6 +229,27 @@ async def get_healthcare_facilities(
     
     except ValueError as e:
         raise HTTPException(status_code=429, detail=str(e))
+    except httpx.HTTPStatusError as e:
+        status_code = e.response.status_code if e.response else None
+        logger.error(f"Overpass API HTTP error: {status_code} - {str(e)}")
+        if status_code == 504:
+            raise HTTPException(
+                status_code=503,
+                detail="Overpass API is temporarily unavailable (timeout). Please try again in a few moments."
+            )
+        elif status_code and status_code >= 500:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Overpass API service error ({status_code}). Please try again later."
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"Overpass API error: {str(e)}")
+    except httpx.RequestError as e:
+        logger.error(f"Overpass API request error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to connect to Overpass API. Please try again later."
+        )
     except Exception as e:
         logger.error(f"Error fetching healthcare facilities: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch facilities: {str(e)}")

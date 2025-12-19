@@ -30,6 +30,7 @@ services:
       DATABASE_URL: postgresql://healthpulse:healthpulse@db:5432/healthpulse_db
       API_HOST: 0.0.0.0
       API_PORT: 8002
+      ENVIRONMENT: development
     ports:
       - "8002:8000"
     volumes:

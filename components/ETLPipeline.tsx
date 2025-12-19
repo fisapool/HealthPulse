@@ -16,24 +16,12 @@ const ETLPipeline: React.FC = () => {
   }, []);
 
   const loadJobs = async () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7253/ingest/a8cab7a7-76fb-4e1e-a083-65c1134027c1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ETLPipeline.tsx:19',message:'loadJobs() entry',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     try {
       setLoading(true);
       setError(null);
-      // #region agent log
-      fetch('http://127.0.0.1:7253/ingest/a8cab7a7-76fb-4e1e-a083-65c1134027c1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ETLPipeline.tsx:23',message:'Before etlApi.getAll() call',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       const data = await etlApi.getAll();
-      // #region agent log
-      fetch('http://127.0.0.1:7253/ingest/a8cab7a7-76fb-4e1e-a083-65c1134027c1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ETLPipeline.tsx:25',message:'After etlApi.getAll() - received data',data:{jobsCount:data?.length||0,isArray:Array.isArray(data)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       setJobs(data);
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7253/ingest/a8cab7a7-76fb-4e1e-a083-65c1134027c1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ETLPipeline.tsx:27',message:'loadJobs() catch block',data:{errorMessage:(err as any)?.message,hasResponse:!!(err as any)?.response,responseStatus:(err as any)?.response?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
       setError('Failed to load ETL jobs. Please try again.');
       console.error('Error loading ETL jobs:', err);
       // Don't show error if API endpoint doesn't exist yet

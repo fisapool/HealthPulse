@@ -24,15 +24,24 @@ const StatCard = ({ title, value, icon: Icon, color, trend }: any) => (
 const Dashboard: React.FC = () => {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
         setLoading(true);
+        setError(null);
         const data = await facilitiesApi.getAll();
         setFacilities(data);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error loading dashboard stats:', err);
+        // Show user-friendly error message
+        const errorMessage = err?.message || 'Failed to load facilities';
+        setError(errorMessage);
+        // If it's a 503 error (service unavailable), show a helpful message
+        if (err?.response?.status === 503 || errorMessage.includes('temporarily unavailable')) {
+          setError('Overpass API is temporarily unavailable. Please try again in a few moments.');
+        }
       } finally {
         setLoading(false);
       }
@@ -79,6 +88,16 @@ const Dashboard: React.FC = () => {
         <h2 className="text-3xl font-bold text-slate-900">Registry Analytics</h2>
         <p className="text-slate-500 mt-1">Real-time health facility distribution and quality metrics.</p>
       </header>
+
+      {error && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="text-amber-600" size={20} />
+          <div>
+            <p className="text-amber-800 font-medium">{error}</p>
+            <p className="text-amber-700 text-sm mt-1">The data service may be temporarily busy. Please refresh the page to try again.</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Facilities" value={loading ? '...' : totalFacilities.toLocaleString()} icon={MapPin} color="blue" />
