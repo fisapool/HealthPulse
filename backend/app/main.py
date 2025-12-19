@@ -6,7 +6,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
-from app.routes import etl_jobs, overpass
+from app.routes import etl_jobs, overpass, facilities
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -47,6 +47,7 @@ app.add_middleware(
 # Include routers
 app.include_router(etl_jobs.router, prefix="/api/v1", tags=["ETL Jobs"])
 app.include_router(overpass.router, prefix="/api/v1/overpass", tags=["Overpass API"])
+app.include_router(facilities.router, prefix="/api/v1", tags=["Facilities"])
 
 
 @app.get("/")

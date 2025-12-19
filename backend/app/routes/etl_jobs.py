@@ -4,7 +4,7 @@ ETL Jobs API routes
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from app.database import get_db
 from app.models.etl_job import ETLJob
@@ -17,6 +17,7 @@ from app.schemas.scraper_config import DatasetDiscoveryRequest, ScrapeRequest
 from app.services.dosm_scraper import DOSMScraper
 from app.services.dataset_discovery import DatasetDiscovery
 from app.services.source_gate import SourceGateError
+from app.services.facility_etl import run_facility_etl_job
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -320,4 +321,86 @@ async def get_dataset_versions(
     ).order_by(DatasetVersion.version_number.desc()).limit(limit).all()
     
     return [DatasetVersionResponse.model_validate(v) for v in versions]
+
+
+# ==================== Overpass Facilities ETL Endpoints ====================
+
+@router.post("/etl-jobs/overpass-facilities")
+async def trigger_facility_etl(
+    bbox: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Trigger ETL job to fetch and store healthcare facilities from Overpass API
+    
+    This endpoint:
+    1. Creates an ETL job record
+    2. Fetches facilities from Overpass API (may take 10-30 seconds)
+    3. Stores/updates facilities in the database
+    4. Returns job status and statistics
+    
+    Query parameters:
+    - bbox: Optional bounding box as "south,west,north,east". Defaults to Malaysia bounds.
+    
+    Note: This is a long-running operation. The Overpass API query can take 10-30+ seconds.
+    """
+    # Parse bounding box if provided
+    parsed_bbox = None
+    if bbox:
+        try:
+            coords = [float(x.strip()) for x in bbox.split(",")]
+            if len(coords) != 4:
+                raise ValueError("Bounding box must have 4 coordinates")
+            parsed_bbox = coords
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid bounding box format: {str(e)}. Expected: south,west,north,east"
+            )
+    
+    # Create ETL job record
+    etl_job = ETLJob(
+        source="Overpass_API_Facilities",
+        status=ETLJobStatus.RUNNING
+    )
+    db.add(etl_job)
+    db.commit()
+    db.refresh(etl_job)
+    
+    try:
+        logger.info(f"Starting facility ETL job {etl_job.id} (bbox: {parsed_bbox})")
+        
+        # Run ETL job
+        result = await run_facility_etl_job(
+            db=db,
+            bbox=parsed_bbox,
+            client_id=f"etl_job_{etl_job.id}"
+        )
+        
+        # Update ETL job with results
+        etl_job.status = ETLJobStatus.COMPLETED
+        etl_job.records_processed = result.get("stored", 0) + result.get("updated", 0)
+        etl_job.errors = result.get("errors", 0)
+        db.commit()
+        
+        logger.info(f"Facility ETL job {etl_job.id} completed successfully")
+        
+        return {
+            "etl_job_id": etl_job.id,
+            "status": "completed",
+            "result": result,
+            "message": f"Successfully processed {result['stored']} new and {result['updated']} updated facilities"
+        }
+        
+    except Exception as e:
+        # Update ETL job with error
+        etl_job.status = ETLJobStatus.FAILED
+        etl_job.errors = 1
+        db.commit()
+        
+        logger.error(f"Facility ETL job {etl_job.id} failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ETL job failed: {str(e)}"
+        )
 

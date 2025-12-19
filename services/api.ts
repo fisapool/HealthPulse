@@ -34,26 +34,30 @@ const api = axios.create({
 // API Functions
 export const facilitiesApi = {
   /**
-   * Fetch all health facilities from Overpass API (Malaysia only, hospitals and clinics)
-   * Uses backend proxy only - single source architecture
+   * Fetch all health facilities from database (fast!)
+   * 
+   * This endpoint queries the local database instead of Overpass API,
+   * providing much faster response times (milliseconds vs seconds).
+   * 
+   * Facilities are populated via ETL jobs. Use triggerFacilityETL() to refresh data.
    */
   async getAll(signal?: AbortSignal): Promise<Facility[]> {
     try {
-      const response = await api.post('/overpass/facilities', {}, {
-        timeout: 60000,
+      const response = await api.get('/facilities', {
+        timeout: 5000,  // Much faster - database query
         signal: signal,
       });
 
       if (response.data && response.data.facilities) {
-        // Backend returns pre-mapped facilities
+        // Backend returns pre-mapped facilities from database
         return response.data.facilities.map((facility: any) => ({
-          id: facility.id,
+          id: facility.id?.toString() || facility.osm_id || '',
           name: facility.name,
           type: facility.type === 'hospital' ? FacilityType.HOSPITAL : FacilityType.CLINIC,
           location: facility.location,
-          address: facility.address,
+          address: facility.address || '',
           contact: facility.contact || '',
-          lastUpdated: facility.lastUpdated,
+          lastUpdated: facility.lastUpdated || '',
           isDuplicate: false,
           score: facility.score || 0,
         }));
@@ -64,13 +68,14 @@ export const facilitiesApi = {
       if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED' || (signal && signal.aborted)) {
         return [];
       }
-      console.error('Error fetching facilities from backend proxy:', error);
-      // Handle 503 Service Unavailable (Overpass API timeout)
-      if (error.response?.status === 503) {
-        throw new Error('Overpass API is temporarily unavailable. Please try again in a few moments.');
+      console.error('Error fetching facilities from database:', error);
+      // Handle empty database case (no facilities loaded yet)
+      if (error.response?.status === 404 || error.response?.status === 200) {
+        // If database is empty, return empty array (user needs to run ETL first)
+        return [];
       }
       if (error.code === 'ECONNABORTED') {
-        throw new Error('Request timeout. The backend proxy may be slow. Please try again.');
+        throw new Error('Request timeout. Please try again.');
       }
       throw new Error(`Failed to fetch facilities: ${error.message || 'Unknown error'}`);
     }
@@ -78,30 +83,28 @@ export const facilitiesApi = {
 
   /**
    * Fetch facilities by bounding box (for map viewport filtering)
-   * Uses backend proxy only - single source architecture
+   * Queries database instead of Overpass API (fast!)
    */
   async getByBoundingBox(bbox: { south: number; west: number; north: number; east: number }): Promise<Facility[]> {
     try {
-      const response = await api.get('/overpass/facilities/bbox', {
+      const bboxString = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`;
+      const response = await api.get('/facilities', {
         params: {
-          south: bbox.south,
-          west: bbox.west,
-          north: bbox.north,
-          east: bbox.east,
+          bbox: bboxString,
         },
-        timeout: 60000,
+        timeout: 5000,  // Much faster - database query
       });
 
       if (response.data && response.data.facilities) {
-        // Backend returns pre-mapped facilities
+        // Backend returns pre-mapped facilities from database
         return response.data.facilities.map((facility: any) => ({
-          id: facility.id,
+          id: facility.id?.toString() || facility.osm_id || '',
           name: facility.name,
           type: facility.type === 'hospital' ? FacilityType.HOSPITAL : FacilityType.CLINIC,
           location: facility.location,
-          address: facility.address,
+          address: facility.address || '',
           contact: facility.contact || '',
-          lastUpdated: facility.lastUpdated,
+          lastUpdated: facility.lastUpdated || '',
           isDuplicate: false,
           score: facility.score || 0,
         }));
@@ -208,6 +211,27 @@ export const etlApi = {
     } catch (error: any) {
       console.error('Error creating ETL job:', error);
       throw new Error(`Failed to create ETL job: ${error.message || 'Unknown error'}`);
+    }
+  },
+
+  /**
+   * Trigger facility ETL job to fetch and store facilities from Overpass API
+   * This is a long-running operation (10-30+ seconds) that fetches fresh data
+   * from Overpass API and stores it in the database.
+   * 
+   * @param bbox Optional bounding box as "south,west,north,east"
+   */
+  async triggerFacilityETL(bbox?: string): Promise<{ etl_job_id: number; result: any; message: string }> {
+    try {
+      const params = bbox ? { bbox } : {};
+      const response = await api.post('/etl-jobs/overpass-facilities', null, {
+        params,
+        timeout: 120000,  // 2 minutes timeout for long-running ETL job
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error triggering facility ETL job:', error);
+      throw new Error(`Failed to trigger facility ETL: ${error.message || 'Unknown error'}`);
     }
   },
 };
