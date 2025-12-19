@@ -1,6 +1,10 @@
-# TODO: Update services/api.ts for Overpass API Integration
+# HealthPulse Port Reconfiguration TODO
 
-- [ ] Update facilitiesApi.getAll() to query Overpass API instead of backend API, using buildOverpassQuery(), axios.post with timeout, filter elements, and map with mapOSMToFacility().
-- [ ] Add facilitiesApi.getByBoundingBox(bounds: number[]) with similar logic for custom bounding boxes.
-- [ ] Test the Overpass API integration: run the app, verify facilities load from OSM, check for TypeScript errors.
-- [ ] Ensure search() works correctly since it depends on getAll().
+- [x] Update `docker-compose.yml` to use ports 5434 (database)
+- [x] Update `backend/app/database.py` default connection string
+- [x] Update `backend/env.example` with new port configurations
+- [ ] Update `services/api.ts` frontend API configuration
+- [x] Removed self-hosted Overpass API setup (now using public API)
+- [ ] Start Docker Compose services
+- [ ] Verify services are running
+

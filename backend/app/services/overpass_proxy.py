@@ -14,8 +14,12 @@ except ImportError:
     # Fallback if config not available
     def get_overpass_config():
         import os
+        base_url = os.getenv("OVERPASS_API_URL", "https://overpass-api.de")
+        # Remove /api/interpreter if present (for backward compatibility)
+        if base_url.endswith("/api/interpreter"):
+            base_url = base_url[:-15]
         return {
-            "url": os.getenv("OVERPASS_API_URL", "http://overpass-api:80"),
+            "url": base_url.rstrip("/"),
             "cache_ttl": int(os.getenv("OVERPASS_CACHE_TTL", "300")),
             "rate_limit": int(os.getenv("OVERPASS_RATE_LIMIT", "60")),
             "timeout": int(os.getenv("OVERPASS_TIMEOUT", "60"))
@@ -29,6 +33,12 @@ class OverpassProxyService:
     
     def __init__(self):
         self.config = get_overpass_config()
+        # Ensure URL doesn't have trailing slash
+        base_url = self.config["url"].rstrip("/")
+        # Remove /api/interpreter if present (for backward compatibility)
+        if base_url.endswith("/api/interpreter"):
+            base_url = base_url[:-15]  # Remove "/api/interpreter"
+        self.base_url = base_url
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.config["timeout"], connect=10.0),
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
@@ -121,7 +131,7 @@ class OverpassProxyService:
         try:
             logger.info(f"Executing Overpass query (client: {client_id})")
             response = await self.client.post(
-                f"{self.config['url']}/api/interpreter",
+                f"{self.base_url}/api/interpreter",
                 content=query,
                 headers={"Content-Type": "text/plain"}
             )
@@ -150,7 +160,7 @@ class OverpassProxyService:
         """Check Overpass API health status"""
         try:
             response = await self.client.get(
-                f"{self.config['url']}/api/status",
+                f"{self.base_url}/api/status",
                 timeout=5.0
             )
             response.raise_for_status()

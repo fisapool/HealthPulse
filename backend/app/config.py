@@ -62,8 +62,12 @@ TIER_SCRAPE_METHOD_MAP = {
 # Overpass API Configuration
 def get_overpass_config() -> dict:
     """Get Overpass API configuration from environment variables or defaults"""
+    base_url = os.getenv("OVERPASS_API_URL", "https://overpass-api.de")
+    # Remove /api/interpreter if present (for backward compatibility)
+    if base_url.endswith("/api/interpreter"):
+        base_url = base_url[:-15]
     return {
-        "url": os.getenv("OVERPASS_API_URL", "http://overpass-api:80"),
+        "url": base_url.rstrip("/"),
         "cache_ttl": int(os.getenv("OVERPASS_CACHE_TTL", "300")),  # 5 minutes default
         "rate_limit": int(os.getenv("OVERPASS_RATE_LIMIT", "60")),  # 60 queries per minute
         "timeout": int(os.getenv("OVERPASS_TIMEOUT", "60"))  # 60 seconds default

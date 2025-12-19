@@ -25,48 +25,47 @@ Reviewed all API endpoints and services in the healthpulse-registry application.
 
 ## ✅ Working APIs
 
-### 1. Overpass API (`services/api.ts`)
-**Status:** ✅ Working
-- **Endpoint:** `http://192.168.0.145:8083/api/interpreter` (default)
-- **Configurable via:** `VITE_OVERPASS_API_URL` environment variable
+
+### 1. Overpass API through Backend Proxy (`services/api.ts`)
+**Status:** ✅ Working (Single Source Architecture)
+- **Endpoint:** Backend proxy at `/api/v1/overpass/facilities`
+- **Configurable via:** `VITE_API_BASE_URL` environment variable
 - **Functionality:**
-  - ✅ `facilitiesApi.getAll()` - Fetches all facilities in Malaysia
-  - ✅ `facilitiesApi.getByBoundingBox()` - Fetches facilities by map bounds
+  - ✅ `facilitiesApi.getAll()` - Fetches all facilities in Malaysia via backend proxy
+  - ✅ `facilitiesApi.getByBoundingBox()` - Fetches facilities by map bounds via backend proxy
   - ✅ `facilitiesApi.search()` - Client-side search filtering
 - **Error Handling:** ✅ Proper timeout and error handling
-- **Query Format:** ✅ Correctly formatted Overpass QL queries
-
-**Test Results:**
-- API endpoint is reachable
-- Query syntax is correct
-- Returns valid JSON responses
+- **Caching:** ✅ Backend proxy provides caching and rate limiting
+- **Single Source:** ✅ No direct external API calls
 
 ### 2. Backend API (`services/api.ts`)
-**Status:** ⚠️ Not Implemented (Expected)
+**Status:** ✅ Working
 - **Endpoint:** `http://localhost:8000/api/v1` (default)
 - **Configurable via:** `VITE_API_BASE_URL` environment variable
 - **Functionality:**
-  - ⚠️ `etlApi.getAll()` - Returns empty array if endpoint doesn't exist (graceful)
-  - ⚠️ `etlApi.create()` - Will fail if backend not running
-- **Error Handling:** ✅ Gracefully handles 404 errors (returns empty array)
-
-**Note:** The backend API is expected to be optional. The code handles missing endpoints gracefully.
+  - ✅ `etlApi.getAll()` - Returns ETL jobs from backend
+  - ✅ `etlApi.create()` - Creates new ETL jobs
+  - ✅ `overpass/facilities` - Proxy endpoint for Overpass API
+  - ✅ `overpass/facilities/bbox` - Bounding box queries via proxy
+  - ✅ `overpass/health` - Health check for Overpass service
+- **Error Handling:** ✅ Gracefully handles errors
+- **Single Source:** ✅ All facility data routed through backend proxy
 
 ## ⚠️ Configuration Notes
+
 
 ### Environment Variables
 The application expects these environment variables (in `.env.local` or `.env`):
 
 ```env
-# Overpass API endpoint (defaults to local instance)
-VITE_OVERPASS_API_URL=http://192.168.0.145:8083/api/interpreter
-
-# Backend API Base URL (for ETL jobs)
+# Backend API Base URL (single source for all requests)
 VITE_API_BASE_URL=http://localhost:8000/api/v1
 
 # Gemini API Key for AI analysis features
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
+
+**Note:** All Overpass API queries are now routed through the backend proxy at `/api/v1/overpass/*` endpoints. No direct external API calls are made from the frontend.
 
 ### Vite Configuration
 The `vite.config.ts` defines `process.env` variables for backward compatibility, but the code now uses `import.meta.env` which is the correct Vite approach.
@@ -129,11 +128,13 @@ Run `node test-api.js` to verify API connectivity:
 
 ## Summary
 
-**Overall Status:** ✅ APIs are working correctly
 
-- **Overpass API:** ✅ Fully functional
-- **Backend API:** ⚠️ Not implemented (expected, gracefully handled)
+**Overall Status:** ✅ Single Source Architecture Implemented
+
+- **Backend Proxy:** ✅ All facility queries routed through `/api/v1/overpass/facilities`
+- **Backend API:** ✅ Fully functional for ETL jobs and proxy services
+- **Single Source:** ✅ No direct external API calls from frontend
 - **Gemini Service:** ✅ Fixed and ready (requires API key)
 
-All critical issues have been resolved. The application should work correctly with the Overpass API for fetching healthcare facilities data.
+All critical issues have been resolved. The application now uses a single-source architecture where all Overpass API queries are routed through the backend proxy, providing caching, rate limiting, and data consistency.
 

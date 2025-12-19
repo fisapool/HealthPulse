@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-The HealthPulse Registry is a comprehensive full-stack web application designed to manage and analyze health facility data in Malaysia. It aggregates geospatial data from OpenStreetMap via a self-hosted Overpass API instance, provides an interactive dashboard for real-time analytics, and includes a robust ETL (Extract, Transform, Load) pipeline for data ingestion from various sources, such as the Department of Statistics Malaysia (DOSM). The application focuses on hospitals and clinics, enabling data-driven insights for healthcare planning and management.
+The HealthPulse Registry is a comprehensive full-stack web application designed to manage and analyze health facility data in Malaysia. It aggregates geospatial data from OpenStreetMap via the public Overpass API, provides an interactive dashboard for real-time analytics, and includes a robust ETL (Extract, Transform, Load) pipeline for data ingestion from various sources, such as the Department of Statistics Malaysia (DOSM). The application focuses on hospitals and clinics, enabling data-driven insights for healthcare planning and management.
 
 ## Key Features
 
 - **Interactive Dashboard**: Real-time analytics with map view, registry table, and ETL monitoring.
 - **ETL Pipeline**: Automated data ingestion from DOSM with version tracking, metadata enrichment, and tiered scraping strategies.
-- **Geospatial Capabilities**: Self-hosted Overpass API with Malaysia OSM extract for accurate geospatial data.
+- **Geospatial Capabilities**: Integration with public Overpass API for accurate geospatial data from OpenStreetMap.
 - **Scraping Strategies**: Multi-tiered approaches using requests, pandas, pdfplumber, BeautifulSoup, and Playwright for diverse data sources.
 - **AI-Powered Deduplication**: Integration with Google Gemini for intelligent duplicate detection and data cleaning.
 - **Containerized Deployment**: Full Docker and Docker Compose support for easy setup and scalability.
@@ -22,7 +22,7 @@ The application follows a modular, microservices-inspired architecture:
 - **Frontend**: Built with React 18, TypeScript, Vite, and Tailwind CSS for a responsive, interactive user interface.
 - **Backend**: Developed using Python 3.11, FastAPI, SQLAlchemy, and Pydantic for high-performance API services.
 - **Database**: PostgreSQL with PostGIS extension for geospatial data storage and querying.
-- **Geospatial Services**: Self-hosted Overpass API for querying OpenStreetMap data.
+- **Geospatial Services**: Public Overpass API for querying OpenStreetMap data.
 - **ETL Services**: Dedicated services for data extraction, transformation, and loading with tiered scraping.
 - **Caching Layer**: Optional Redis for caching API responses and improving performance.
 - **AI Integration**: Google Gemini for advanced data processing tasks like deduplication.
@@ -50,7 +50,7 @@ Data flows from external sources (e.g., DOSM, OpenStreetMap) through the ETL pip
   - PostGIS (geospatial extension)
 
 - **Geospatial**:
-  - Overpass API (query engine)
+  - Overpass API (public API for querying OpenStreetMap)
   - OpenStreetMap (data source)
 
 - **Scraping & ETL**:
@@ -89,20 +89,14 @@ Data flows from external sources (e.g., DOSM, OpenStreetMap) through the ETL pip
    docker-compose up -d
    ```
    This command starts:
-   - PostgreSQL database (port 5432)
-   - Backend API (port 8000)
-   - Frontend (port 5173)
-   - Overpass API (port 8083)
-   - Redis (optional, port 6379)
+   - PostgreSQL database (port 5434)
+   - Backend API (port 8002)
+   - Frontend (port 3001)
 
 4. **Access the Application**:
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
-
-5. **Initial Setup for Overpass API**:
-   - Download the Malaysia OSM extract to `backend/data/malaysia-latest.osm.pbf`.
-   - The Overpass API will import the data on first run (may take 30-60 minutes).
+   - Frontend: http://localhost:3001
+   - Backend API: http://localhost:8002
+   - API Docs: http://localhost:8002/docs
 
 ### Local Development
 
@@ -115,10 +109,10 @@ Data flows from external sources (e.g., DOSM, OpenStreetMap) through the ETL pip
    npm install
    ```
 
+
 3. **Configure Environment**:
    Create a `.env.local` file:
    ```env
-   VITE_OVERPASS_API_URL=http://localhost:8083/api/interpreter
    VITE_API_BASE_URL=http://localhost:8000/api/v1
    GEMINI_API_KEY=your_gemini_api_key_here
    ```

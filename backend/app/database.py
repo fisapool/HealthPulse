@@ -21,10 +21,11 @@ def validate_database_url(url):
         raise ValueError("DATABASE_URL must include hostname and database name")
 
 # Database URL from environment variable
-# Port 5433 to avoid conflict with local PostgreSQL service on port 5432
+
+# Port 5434 to avoid conflict with local PostgreSQL service on port 5432/5433
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://healthpulse:healthpulse@127.0.0.1:5433/healthpulse_db"
+    "postgresql://healthpulse:healthpulse@127.0.0.1:5434/healthpulse_db"
 )
 
 validate_database_url(DATABASE_URL)

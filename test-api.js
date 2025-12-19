@@ -1,57 +1,13 @@
+
 // Quick API test script
 // Run with: node test-api.js
-// Tests connectivity to Overpass API and Backend API
+// Tests connectivity to Backend API (single source architecture)
 
 import axios from 'axios';
 
-const OVERPASS_API_URL = process.env.VITE_OVERPASS_API_URL || 'http://192.168.0.145:8083/api/interpreter';
 const API_BASE_URL = process.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
-// Test Overpass API
-async function testOverpassAPI() {
-  console.log('\n=== Testing Overpass API ===');
-  console.log(`Endpoint: ${OVERPASS_API_URL}`);
-  
-  const query = `
-    [out:json][timeout:10];
-    (
-      node["amenity"="hospital"](0.855,98.942,7.363,119.267);
-      way["amenity"="hospital"](0.855,98.942,7.363,119.267);
-    );
-    out center meta;
-  `.trim();
-
-  try {
-    const response = await axios.post(OVERPASS_API_URL, query, {
-      headers: { 'Content-Type': 'text/plain' },
-      timeout: 30000,
-    });
-    
-    if (response.data && response.data.elements) {
-      console.log(`✅ Overpass API working! Found ${response.data.elements.length} elements`);
-      if (response.data.elements.length > 0) {
-        console.log('Sample element:', JSON.stringify(response.data.elements[0], null, 2));
-      }
-    } else {
-      console.log('⚠️  Overpass API responded but no elements found');
-    }
-  } catch (error) {
-    if (error.code === 'ECONNREFUSED') {
-      console.log('❌ Connection refused - Is the Overpass API server running?');
-    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-      console.log('❌ Request timeout - API may be slow or unreachable');
-    } else if (error.response) {
-      console.log(`❌ Error: ${error.response.status} ${error.response.statusText}`);
-      if (error.response.data) {
-        console.log('Response data:', error.response.data);
-      }
-    } else {
-      console.log(`❌ Error: ${error.message}`);
-    }
-  }
-}
-
-// Test Backend API
+// Test Backend API Health
 async function testBackendAPI() {
   console.log('\n=== Testing Backend API ===');
   console.log(`Endpoint: ${API_BASE_URL}`);
@@ -73,10 +29,71 @@ async function testBackendAPI() {
   }
 }
 
+// Test Overpass Proxy through Backend
+async function testOverpassProxy() {
+  console.log('\n=== Testing Overpass Proxy ===');
+  console.log(`Endpoint: ${API_BASE_URL}/overpass/facilities`);
+  
+  try {
+    const response = await axios.post(`${API_BASE_URL}/overpass/facilities`, {}, {
+      timeout: 60000,
+    });
+    
+    if (response.data && response.data.facilities) {
+      console.log(`✅ Overpass proxy working! Found ${response.data.facilities.length} facilities`);
+      if (response.data.facilities.length > 0) {
+        console.log('Sample facility:', JSON.stringify(response.data.facilities[0], null, 2));
+      }
+    } else {
+      console.log('⚠️  Overpass proxy responded but no facilities found');
+    }
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED') {
+      console.log('❌ Connection refused - Is the backend server running?');
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      console.log('❌ Request timeout - Backend or Overpass API may be slow');
+    } else if (error.response) {
+      console.log(`❌ Error: ${error.response.status} ${error.response.statusText}`);
+      if (error.response.data) {
+        console.log('Response data:', error.response.data);
+      }
+    } else {
+      console.log(`❌ Error: ${error.message}`);
+    }
+  }
+}
+
+// Test Overpass Proxy Health Check
+async function testOverpassHealth() {
+  console.log('\n=== Testing Overpass Proxy Health ===');
+  console.log(`Endpoint: ${API_BASE_URL}/overpass/health`);
+  
+  try {
+    const response = await axios.get(`${API_BASE_URL}/overpass/health`, {
+      timeout: 10000,
+    });
+    
+    console.log(`✅ Overpass health check working! Status: ${response.status}`);
+    console.log('Health status:', JSON.stringify(response.data, null, 2));
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED') {
+      console.log('❌ Connection refused - Is the backend server running?');
+    } else if (error.response) {
+      console.log(`❌ Error: ${error.response.status} ${error.response.statusText}`);
+      if (error.response.data) {
+        console.log('Response data:', error.response.data);
+      }
+    } else {
+      console.log(`❌ Error: ${error.message}`);
+    }
+  }
+}
+
 // Run tests
 (async () => {
-  await testOverpassAPI();
   await testBackendAPI();
+  await testOverpassHealth();
+  await testOverpassProxy();
   console.log('\n=== Test Complete ===\n');
 })();
 

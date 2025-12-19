@@ -128,14 +128,15 @@ Manage data extraction, transformation, and loading processes.
 
 ## API Integration
 
+
 ### Overpass API
 
-The application integrates with OpenStreetMap's Overpass API:
+The application integrates with OpenStreetMap's Overpass API through the backend proxy:
 
-- **Endpoint**: Configurable via `VITE_OVERPASS_API_URL`
+- **Endpoint**: Backend proxy at `/api/v1/overpass/facilities`
 - **Query**: Limited to healthcare facilities in Malaysia
-- **Timeout**: 30-second request timeout
-- **Caching**: No caching (real-time data)
+- **Timeout**: 60-second request timeout
+- **Caching**: Backend proxy provides caching and rate limiting
 
 ### Backend API
 
@@ -147,36 +148,35 @@ ETL jobs managed through FastAPI backend:
 
 ## Configuration
 
+
 ### Environment Variables
 
 ```env
-# Overpass API endpoint
-VITE_OVERPASS_API_URL=http://192.168.0.145:8083/api/interpreter
-
-# Backend API for ETL jobs
+# Backend API for all requests
 VITE_API_BASE_URL=http://localhost:8000/api/v1
 
 # Gemini API for AI features
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-### Overpass API Endpoints
+### Backend Proxy
 
-- **Local Instance**: `http://192.168.0.145:8083/api/interpreter`
-- **Public Instances**:
-  - `https://overpass-api.de/api/interpreter`
-  - `https://overpass.kumi.systems/api/interpreter`
+All Overpass API queries are routed through the backend proxy:
+- **Health Facilities**: `/api/v1/overpass/facilities`
+- **Bounding Box Queries**: `/api/v1/overpass/facilities/bbox`
+- **Health Check**: `/api/v1/overpass/health`
 
 ## Troubleshooting
 
 ### Common Issues
 
+
 #### Map Not Loading Facilities
 
-- Check Overpass API endpoint configuration
-- Verify network connectivity
-- Check browser console for CORS errors
-- Ensure Overpass instance is running
+- Check backend proxy configuration
+- Verify backend is running on port 8000
+- Check browser console for network errors
+- Ensure Overpass instance is accessible to backend
 
 #### ETL Jobs Not Appearing
 
